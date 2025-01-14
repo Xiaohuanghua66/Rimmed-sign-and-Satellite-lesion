@@ -1,0 +1,494 @@
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
+from xgboost import XGBClassifier
+from skopt import BayesSearchCV  # 导入贝叶斯搜索优化
+from skopt.space import Real, Integer  # 定义搜索空间
+from sklearn.ensemble import RandomForestClassifier
+# 加载数据
+df_train = pd.read_csv('Develop.csv')
+df_test = pd.read_csv('Test.csv')
+df_exvad = pd.read_csv('EXVAD.csv')
+
+# 检查列名
+print("Training columns:", df_train.columns)
+print("Test columns:", df_test.columns)
+
+# 划分特征和目标变量
+X_train = df_train.drop(['pathology_type'], axis=1)  # 从训练集去掉目标变量列
+y_train = df_train['pathology_type']  # 训练集的目标变量
+
+X_test = df_test.drop(['pathology_type'], axis=1)  # 从测试集去掉目标变量列
+y_test = df_test['pathology_type']  # 测试集的目标变量
+
+X_exvad = df_exvad.drop(['pathology_type'], axis=1)  # 从测试集去掉目标变量列
+y_exvad = df_exvad['pathology_type']  # 测试集的目标变量
+
+# 确保训练集和测试集的列顺序一致
+# 找出缺失的列并添加到测试集中，初始化为0
+missing_cols = set(X_train.columns) - set(X_test.columns)
+for col in missing_cols:
+    X_test[col] = 0  # 默认值为0，或者根据实际情况填充
+
+# 确保列顺序一致，重新排列测试集的列顺序
+X_test = X_test[X_train.columns]
+
+# 数据归一化
+scaler = MinMaxScaler()
+xtrain_s = scaler.fit_transform(X_train)  # 确保使用 X_train 进行拟合
+xtest_s = scaler.transform(X_test)  # 用同样的缩放器转换 X_test
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import classification_report, confusion_matrix
+from xgboost import XGBClassifier
+import pandas as pd
+import numpy as np
+# 初始化XGBoost模型，使用最优超参数
+best_model = XGBClassifier(
+    booster='gblinear',
+    colsample_bytree=1.0,
+    gamma=0.0,
+    learning_rate=0.057598080260516236,
+    max_depth=4,
+    min_child_weight=8,
+    n_estimators=200,
+    objective='multi:softmax',
+    scale_pos_weight=1.0,
+    subsample=0.5,
+    random_state=8
+)
+
+# 训练模型
+best_model.fit(X_train, y_train)
+
+# 如果 xtest_s 是一个 numpy 数组而不是 DataFrame
+if isinstance(xtest_s, np.ndarray):
+    # 将 xtest_s 转换为 DataFrame，列名与 X_train.columns 一致
+    xtest_s = pd.DataFrame(xtest_s, columns=X_train.columns)
+
+# 确保测试集的列顺序与训练集一致
+xtest_s = xtest_s[X_train.columns]
+
+# 现在你可以使用best_model进行测试集预测
+y_pred_test = best_model.predict(xtest_s)
+# 输出模型评估（测试集）
+print("Test Set Classification Report:")
+print(classification_report(y_test, y_pred_test))
+
+# 绘制测试集混淆矩阵
+conf_matrix_test = confusion_matrix(y_test, y_pred_test)
+plt.figure(figsize=(10, 7), dpi=1200)
+sns.heatmap(conf_matrix_test, annot=True, annot_kws={'size': 15}, fmt='d', cmap='Blues', cbar_kws={'shrink': 0.75})
+plt.xlabel('Predicted Label', fontsize=12)
+plt.ylabel('True Label', fontsize=12)
+plt.title('Test Set Confusion Matrix Heat Map_XGB', fontsize=20)
+
+# 保存为PDF
+plt.savefig('test_set_confusion_matrix(XGBoost).pdf', format='pdf')
+plt.close()  # 关闭当前图形，避免多个图形重叠
+
+# 使用 best_model 进行训练集预测
+y_pred_train = best_model.predict(X_train)
+
+# 输出模型评估（训练集）
+print("Train Set Classification Report:")
+print(classification_report(y_train, y_pred_train))
+
+# 绘制训练集混淆矩阵
+conf_matrix_train = confusion_matrix(y_train, y_pred_train)
+plt.figure(figsize=(10, 7), dpi=1200)
+sns.heatmap(conf_matrix_train, annot=True, annot_kws={'size': 15}, fmt='d', cmap='Blues', cbar_kws={'shrink': 0.75})
+plt.xlabel('Predicted Label', fontsize=12)
+plt.ylabel('True Label', fontsize=12)
+plt.title('Train Set Confusion Matrix Heat Map_XGB', fontsize=20)
+
+# 保存为PDF
+plt.savefig('train_set_confusion_matrix(XGBoost).pdf', format='pdf')
+plt.close()  # 关闭当前图形
+
+# 使用 best_model 进行 exvad 集预测
+y_pred_exvad = best_model.predict(X_exvad)  # 假设 X_exvad 是你的验证集特征
+
+# 输出模型评估（exvad 集）
+print("Exvad Set Classification Report:")
+print(classification_report(y_exvad, y_pred_exvad))  # y_exvad 是 exvad 集的真实标签
+
+# 绘制 exvad 集混淆矩阵
+conf_matrix_exvad = confusion_matrix(y_exvad, y_pred_exvad)
+plt.figure(figsize=(10, 7), dpi=1200)
+sns.heatmap(conf_matrix_exvad, annot=True, annot_kws={'size': 15}, fmt='d', cmap='Blues', cbar_kws={'shrink': 0.75})
+plt.xlabel('Predicted Label', fontsize=12)
+plt.ylabel('True Label', fontsize=12)
+plt.title('Exvad Set Confusion Matrix Heat Map_XGB', fontsize=20)
+
+# 保存为PDF
+plt.savefig('exvad_set_confusion_matrix(XGBoost).pdf', format='pdf')
+plt.close()  # 关闭当前图形
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import confusion_matrix, classification_report, roc_curve, auc
+from sklearn.preprocessing import label_binarize
+from xgboost import XGBClassifier
+import pandas as pd
+import numpy as np
+
+# 类别标签映射
+class_names = ['Granulomatous inflammation', 'Benign tumors', 'Non-small cell lung cancer']
+
+
+
+# 将标签转换为二进制格式（多类别问题需要处理为多个二进制分类）
+n_classes = 3
+y_test_bin = label_binarize(y_test, classes=[0, 1, 2])  # 将测试集标签转化为二进制形式
+y_train_bin = label_binarize(y_train, classes=[0, 1, 2])  # 同样对训练集标签进行二进制转换
+y_exvad_bin = label_binarize(y_exvad, classes=[0, 1, 2])  # 同样对exvad集标签进行二进制转换
+
+# 训练模型
+best_model.fit(X_train, y_train)
+
+# 使用best_model进行测试集预测
+y_pred_test = best_model.predict(X_test)  # 使用X_test进行预测
+y_prob_test = best_model.predict_proba(X_test)  # 获取测试集每个类别的概率
+
+# 输出模型评估（测试集）
+print("Test Set Classification Report:")
+print(classification_report(y_test, y_pred_test))
+
+# 绘制测试集 ROC 曲线（每个类别）
+plt.figure(figsize=(7, 7), dpi=1200)
+colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
+for i in range(n_classes):
+    fpr, tpr, _ = roc_curve(y_test_bin[:, i], y_prob_test[:, i])  # 针对每个类别
+    roc_auc = auc(fpr, tpr)
+    plt.plot(fpr, tpr, color=colors[i], lw=2, label=f'ROC curve {class_names[i]} (AUC = {roc_auc:.2f})')
+
+# 绘制随机分类器的对角线
+plt.plot([0, 1], [0, 1], color='gray', linestyle='--')
+plt.xlabel('False Positive Rate', fontsize=20)
+plt.ylabel('True Positive Rate', fontsize=20)
+plt.title('Test Set ROC Curve (XGBoost)', fontsize=20)
+plt.legend(loc='lower right')
+plt.savefig('test_set_roc_curve(XGBoost).pdf', format='pdf')
+plt.close()
+
+# 使用best_model进行训练集预测
+y_pred_train = best_model.predict(X_train)  # 使用X_train进行预测
+y_prob_train = best_model.predict_proba(X_train)  # 获取训练集每个类别的概率
+
+# 输出模型评估（训练集）
+print("Train Set Classification Report:")
+print(classification_report(y_train, y_pred_train))
+
+# 绘制训练集 ROC 曲线（每个类别）
+plt.figure(figsize=(7, 7), dpi=1200)
+for i in range(n_classes):
+    fpr, tpr, _ = roc_curve(y_train_bin[:, i], y_prob_train[:, i])  # 针对每个类别
+    roc_auc = auc(fpr, tpr)
+    plt.plot(fpr, tpr, color=colors[i], lw=2, label=f'ROC curve {class_names[i]} (AUC = {roc_auc:.2f})')
+
+# 绘制随机分类器的对角线
+plt.plot([0, 1], [0, 1], color='gray', linestyle='--')
+plt.xlabel('False Positive Rate', fontsize=20)
+plt.ylabel('True Positive Rate', fontsize=20)
+plt.title('Train Set ROC Curve (XGBoost)', fontsize=20)
+plt.legend(loc='lower right')
+plt.savefig('train_set_roc_curve(XGBoost).pdf', format='pdf')
+plt.close()
+
+# 使用best_model进行exvad集预测
+y_pred_exvad = best_model.predict(X_exvad)  # 使用exvad集进行预测
+y_prob_exvad = best_model.predict_proba(X_exvad)  # 获取exvad集每个类别的概率
+
+# 输出模型评估（exvad集）
+print("EXVAD Set Classification Report:")
+print(classification_report(y_exvad, y_pred_exvad))
+
+# 绘制exvad集 ROC 曲线（每个类别）
+plt.figure(figsize=(7, 7), dpi=1200)
+for i in range(n_classes):
+    fpr, tpr, _ = roc_curve(y_exvad_bin[:, i], y_prob_exvad[:, i])  # 针对每个类别
+    roc_auc = auc(fpr, tpr)
+    plt.plot(fpr, tpr, color=colors[i], lw=2, label=f'ROC curve {class_names[i]} (AUC = {roc_auc:.2f})')
+
+# 绘制随机分类器的对角线
+plt.plot([0, 1], [0, 1], color='gray', linestyle='--')
+plt.xlabel('False Positive Rate', fontsize=20)
+plt.ylabel('True Positive Rate', fontsize=20)
+plt.title('Exvad Set ROC Curve (XGBoost)', fontsize=20)
+plt.legend(loc='lower right')
+plt.savefig('exvad_set_roc_curve(XGBoost).pdf', format='pdf')
+plt.close()
+import numpy as np
+from sklearn.metrics import roc_auc_score
+from itertools import combinations
+from sklearn.utils import resample
+
+# 假设你已经训练好的 XGBoost 模型是 best_model，直接使用它
+# 这里不需要用 best_model.predict(X_test)，你应该用 best_model 计算概率
+
+def calculate_obuchowski_index(model, X, y):
+    """
+    计算模型的 Obuchowski 指数。
+    
+    参数:
+    - model: 训练好的模型（例如优化后的 best_model）
+    - X: 特征数据（测试集或训练集）
+    - y: 标签数据（测试集或训练集）
+    
+    返回:
+    - Obuchowski 指数
+    """
+    # 获取类别数量
+    unique_classes = np.unique(y)
+    n_classes = len(unique_classes)
+    
+    # 获取模型的预测概率
+    y_pred_proba = model.predict_proba(X)
+    
+    auc_sum = 0
+    # 遍历所有类的两两组合，计算每个类对之间的 AUC
+    for class_a, class_b in combinations(unique_classes, 2):
+        # 为每个类创建二进制标签
+        y_binary_a = np.where(y == class_a, 1, 0)
+        y_binary_b = np.where(y == class_b, 1, 0)
+        
+        # 计算每个类别的预测概率
+        y_pred_a = y_pred_proba[:, class_a]
+        y_pred_b = y_pred_proba[:, class_b]
+        
+        # 计算 AUC
+        auc_a = roc_auc_score(y_binary_a, y_pred_a)
+        auc_b = roc_auc_score(y_binary_b, y_pred_b)
+        
+        # 累加两个类别对的 AUC
+        auc_sum += (auc_a + auc_b) / 2
+    
+    # 计算 Obuchowski 指数
+    obuchowski_index = auc_sum / (n_classes * (n_classes - 1) / 2)
+    
+    return obuchowski_index
+
+
+def bootstrap_obuchowski(model, X, y, n_bootstrap=1000, ci_percentile=95):
+    """
+    使用 Bootstrap 方法计算 Obuchowski 指数的 95% 置信区间。
+    
+    参数:
+    - model: 训练好的 XGBoost 模型
+    - X: 特征数据（测试集或训练集）
+    - y: 标签数据（测试集或训练集）
+    - n_bootstrap: bootstrap 重采样次数
+    - ci_percentile: 置信区间的百分位数
+    
+    返回:
+    - obuchowski_index: 原始计算的 Obuchowski 指数
+    - ci_lower: 置信区间下限
+    - ci_upper: 置信区间上限
+    """
+    # 计算原始 Obuchowski 指数
+    obuchowski_index = calculate_obuchowski_index(model, X, y)
+    
+    # 存储每次 bootstrap 计算的 Obuchowski 指数
+    bootstrap_indices = []
+    
+    # 进行 bootstrap 重采样
+    for _ in range(n_bootstrap):
+        # 重采样数据
+        X_resampled, y_resampled = resample(X, y, random_state=None)
+        
+        # 计算每次 bootstrap 的 Obuchowski 指数
+        bootstrap_index = calculate_obuchowski_index(model, X_resampled, y_resampled)
+        bootstrap_indices.append(bootstrap_index)
+    
+    # 计算 95% 置信区间
+    ci_lower = np.percentile(bootstrap_indices, (100 - ci_percentile) / 2)
+    ci_upper = np.percentile(bootstrap_indices, 100 - (100 - ci_percentile) / 2)
+    
+    return obuchowski_index, ci_lower, ci_upper
+
+
+# 假设你已经训练好了优化模型 `best_model`，并且有 X_train, y_train, X_test, y_test 数据
+# 计算训练集的 Obuchowski 指数和 95% CI
+train_obuchowski_index, train_ci_lower, train_ci_upper = bootstrap_obuchowski(best_model, X_train, y_train)
+
+# 计算测试集的 Obuchowski 指数和 95% CI
+test_obuchowski_index, test_ci_lower, test_ci_upper = bootstrap_obuchowski(best_model, X_test, y_test)
+
+# 计算 EXVAD 集的 Obuchowski 指数和 95% CI
+exvad_obuchowski_index, exvad_ci_lower, exvad_ci_upper = bootstrap_obuchowski(best_model, X_exvad, y_exvad)
+
+# 打印结果
+print(f"Training Set Obuchowski Index: {train_obuchowski_index:.4f}")
+print(f"95% CI for Training Set Obuchowski Index: ({train_ci_lower:.4f}, {train_ci_upper:.4f})")
+
+print(f"Test Set Obuchowski Index: {test_obuchowski_index:.4f}")
+print(f"95% CI for Test Set Obuchowski Index: ({test_ci_lower:.4f}, {test_ci_upper:.4f})")
+
+print(f"EXVAD Set Obuchowski Index: {exvad_obuchowski_index:.4f}")
+print(f"95% CI for EXVAD Set Obuchowski Index: ({exvad_ci_lower:.4f}, {exvad_ci_upper:.4f})")
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.metrics import confusion_matrix
+from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
+plt.rcParams['font.family'] = 'Times New Roman'
+# 修改DCA计算函数以支持多分类
+def calculate_net_benefit(thresh_group, y_pred_score, y_label, n_classes):
+    net_benefit = np.zeros((n_classes, len(thresh_group)))  # 为每个类别创建数组
+    for c in range(n_classes):
+        for i, thresh in enumerate(thresh_group):
+            y_pred_label = (y_pred_score[:, c] > thresh).astype(int)  # 对每个类别计算预测标签
+            tn, fp, fn, tp = confusion_matrix(y_label == c, y_pred_label).ravel()
+            n = len(y_label)
+            net_benefit[c, i] = (tp / n) - (fp / n) * (thresh / (1 - thresh))
+    return net_benefit
+
+# 更新绘图函数来处理多分类的DCA曲线
+def plot_DCA(ax, thresh_group, net_benefit, label, color, n_classes):
+    for c in range(n_classes):
+        ax.plot(thresh_group, net_benefit[c], color=color, label=f'{label} Class {c}')
+
+# 计算Treat all的净收益
+def calculate_net_benefit_all(thresh_group, y_label, n_classes):
+    net_benefit_all = np.zeros((n_classes, len(thresh_group)))
+    for c in range(n_classes):
+        tn, fp, fn, tp = confusion_matrix(y_label == c, y_label == c).ravel()
+        total = tp + tn
+        for i, thresh in enumerate(thresh_group):
+            net_benefit_all[c, i] = (tp / total) - (tn / total) * (thresh / (1 - thresh))
+    return net_benefit_all
+
+# 绘制所有模型的DCA曲线
+def plot_all_DCA(models, X, y, thresh_group, n_classes):
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    # 计算Treat all的净收益
+    net_benefit_all = calculate_net_benefit_all(thresh_group, y, n_classes)
+    
+    # 绘制每个模型的DCA曲线
+    for model_name, (model, color) in models.items():
+        model.fit(X, y)
+        y_pred_score = model.predict_proba(X)  # 获取每个类别的概率
+        net_benefit = calculate_net_benefit(thresh_group, y_pred_score, y, n_classes)
+        plot_DCA(ax, thresh_group, net_benefit, model_name, color, n_classes)
+
+    # 添加 Treat None 和 Treat All 线
+    ax.plot(thresh_group, np.zeros_like(thresh_group), color='black', linestyle=':', label='Treat None')
+    ax.plot(thresh_group, net_benefit_all.mean(axis=0), color='black', label='Treat All')
+
+    # 图表配置和美化
+    ax.set_xlim(0, 1)
+    ax.set_ylim(-0.5, 0.8)
+    ax.set_xlabel('Risk Threshold', fontdict={'family': 'Times New Roman', 'fontsize': 15})
+    ax.set_ylabel('Net Benefit', fontdict={'family': 'Times New Roman', 'fontsize': 15})
+    ax.grid(False)
+    ax.legend(loc='lower left')
+    plt.title('DCA Curves for Different Models', fontsize=16)
+    plt.tight_layout()
+    plt.savefig('DCA_Curves_Trainingjiandan.pdf', dpi=1200)
+    plt.show()
+
+# 修复模型字典中的 RandomForest 参数
+models = {
+    'XGBoost': (XGBClassifier(
+        booster='gblinear',
+        colsample_bytree=1.0,
+        gamma=0.0,
+        learning_rate=0.057598080260516236,
+        max_depth=4,
+        min_child_weight=8,
+        n_estimators=200,
+        objective='multi:softmax',
+        scale_pos_weight=1.0,
+        subsample=0.5,
+        random_state=8
+    ), 'blue'),
+    'Random Forest': (RandomForestClassifier(
+        bootstrap=True,
+        criterion='gini',
+        max_depth=9,
+        max_features=0.4072528902661092,
+        min_samples_leaf=1,
+        min_samples_split=11,
+        n_estimators=72
+    ), 'red')
+}
+
+# 设定阈值范围
+thresh_group = np.linspace(0, 1, 100)
+
+# 调用绘图函数进行DCA曲线绘制
+# 这里你可以根据实际数据使用 X_train, y_train 或 X_test, y_test
+plot_all_DCA(models, X_test, y_test, thresh_group, n_classes=3)
+plot_all_DCA(models, X_train, y_train, thresh_group, n_classes=3)
+plot_all_DCA(models, X_exvad, y_exvad, thresh_group, n_classes=3)
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+from sklearn.calibration import calibration_curve
+from xgboost import XGBClassifier
+
+# 初始化模型，使用最优超参数
+best_model = XGBClassifier(
+    booster='gblinear',
+    colsample_bytree=1.0,
+    gamma=0.0,
+    learning_rate=0.057598080260516236,
+    max_depth=4,
+    min_child_weight=8,
+    n_estimators=200,
+    objective='multi:softmax',
+    scale_pos_weight=1.0,
+    subsample=0.5,
+    random_state=8
+)
+
+# 训练模型
+best_model.fit(X_train, y_train)
+
+# 如果 xtest_s 是一个 numpy 数组而不是 DataFrame
+if isinstance(xtest_s, np.ndarray):
+    # 将 xtest_s 转换为 DataFrame，列名与 X_train.columns 一致
+    xtest_s = pd.DataFrame(xtest_s, columns=X_train.columns)
+
+# 确保测试集的列顺序与训练集一致
+xtest_s = xtest_s[X_train.columns]
+
+# 计算训练集、外部验证集和测试集的预测概率
+y_prob_train = best_model.predict_proba(X_train)
+y_prob_exvad = best_model.predict_proba(X_exvad)
+y_prob_test = best_model.predict_proba(xtest_s)
+
+# 定义每个类别的主色调（蓝色系、橙色系、绿色系）
+class_colors = {
+    0: '#00008b',   # 深蓝色用于 Class 0
+    1: '#ff8c00',   # 深橙色用于 Class 1
+    2: '#006400'    # 深绿色用于 Class 2
+}
+
+# 初始化子图
+plt.figure(figsize=(12, 8))
+
+# 绘制每个类别的校准曲线
+for i in range(3):
+    # 训练集的校准曲线：颜色深一点
+    prob_true_train, prob_pred_train = calibration_curve(y_train == i, y_prob_train[:, i], n_bins=10)
+    plt.plot(prob_pred_train, prob_true_train, marker='o', label=f'Developing Class {i}', color=class_colors[i] + '99')  # 使用 RGBA，'99' 代表透明度
+
+    # 测试集的校准曲线：中等深度
+    prob_true_test, prob_pred_test = calibration_curve(y_test == i, y_prob_test[:, i], n_bins=10)
+    plt.plot(prob_pred_test, prob_true_test, marker='s', label=f'Test Class {i}', color=class_colors[i] + '66')  # 使用 RGBA，'66' 代表透明度
+    # 外部验证集的校准曲线：颜色最浅
+    prob_true_exvad, prob_pred_exvad = calibration_curve(y_exvad == i, y_prob_exvad[:, i], n_bins=10)
+    plt.plot(prob_pred_exvad, prob_true_exvad, marker='x', label=f'Exvad Class {i}', color=class_colors[i] + '33')  # 使用 RGBA，'33' 代表透明度
+
+# 绘制参考线
+plt.plot([0, 1], [0, 1], linestyle='--', color='gray')  # 45度参考线
+plt.xlabel('Mean predicted probability')
+plt.ylabel('Fraction of positives')
+plt.title('Calibration Curves for Multi-class Classification XGBoost')
+plt.legend(loc='best')
+plt.savefig('calibration_curves2.pdf', format='pdf')
+plt.show()
