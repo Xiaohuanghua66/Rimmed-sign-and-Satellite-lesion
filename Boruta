@@ -1,0 +1,99 @@
+import boruta
+from sklearn.ensemble import RandomForestClassifier
+from boruta import BorutaPy
+
+# 初始化随机森林模型
+rf = RandomForestClassifier(n_jobs=-1, class_weight='balanced', max_depth=5)
+
+# 初始化Boruta特征选择器
+boruta_selector = BorutaPy(rf, n_estimators='auto', verbose=2, random_state=42)
+
+# 对训练数据进行特征选择
+boruta_selector.fit(X_train.values, y_train.values)
+
+# 检查选中的特征
+selected_features = X_train.columns[boruta_selector.support_].to_list()
+
+# 打印被选择的特征
+print("Selected Features: ", selected_features)
+# 打印被剔除的特征
+rejected_features = X_train.columns[~boruta_selector.support_].to_list()
+print("Rejected Features: ", rejected_features)
+# 打印有待定性的特征
+tentative_features = X_train.columns[boruta_selector.support_weak_].to_list()
+print("Tentative Features: ", tentative_features)
+# 获取特征排名
+feature_ranks = boruta_selector.ranking_
+# 将特征名称和排名结合成一个DataFrame
+feature_importance_df = pd.DataFrame({
+    'Feature': X_train.columns,
+    'Rank': feature_ranks
+})
+feature_importance_df
+# 多次运行Boruta算法以评估特征排名稳定性
+# 初始化随机森林模型
+rf = RandomForestClassifier(n_jobs=-1, class_weight='balanced', max_depth=5)
+
+# 初始化存储特征排名的 DataFrame
+ranking_df = pd.DataFrame(index=range(1, 21), columns=X_train.columns)
+
+# 运行 Boruta 20 次
+for i in range(20):
+    print(f"Iteration {i+1}")
+    
+    # 初始化Boruta特征选择器
+    boruta_selector = BorutaPy(rf, n_estimators='auto', verbose=2, random_state=i, max_iter=50)
+    
+    # 对训练数据进行特征选择
+    boruta_selector.fit(X_train.values, y_train.values)
+    
+    # 获取特征排名
+    feature_ranks = boruta_selector.ranking_
+    
+    # 将特征排名保存到 DataFrame 中
+    ranking_df.loc[i+1] = feature_ranks
+ranking_df
+import seaborn as sns
+import matplotlib.pyplot as plt
+import pandas as pd
+
+# 可视化排名稳定性
+# 确保数据集中只有数值列
+numeric_ranking_df = ranking_df.apply(pd.to_numeric, errors='coerce')
+
+# 计算每个特征的中位数
+median_values = numeric_ranking_df.median()
+
+# 根据中位数对列进行排序
+sorted_columns = median_values.sort_values().index
+
+# 设置绘图风格
+plt.figure(figsize=(12, 8), dpi=1200)  # 增加图形大小
+sns.set(style="whitegrid")
+
+# 设置字体为 Times New Roman
+plt.rcParams['font.sans-serif'] = ['Times New Roman']  # 设置字体为 Times New Roman
+plt.rcParams['axes.unicode_minus'] = False   # 解决负号显示问题
+
+# 绘制箱线图
+sns.boxplot(data=numeric_ranking_df[sorted_columns], palette="Greens")
+
+# 设置标题和标签
+plt.title("Sorted Feature Ranking Distribution by Boruta", fontsize=16)
+plt.xlabel("Attributes", fontsize=14)
+plt.ylabel("Importance", fontsize=14)
+
+# 旋转 X 轴标签 45 度，并调整标签位置
+plt.xticks(rotation=45, ha='right')  # 旋转 X 轴标签 45 度，并设置右对齐
+
+# 自动调整布局以避免重叠
+plt.tight_layout()
+
+# 进一步调整 X 轴的标签位置，以避免重叠
+plt.subplots_adjust(bottom=0.2)  # 增加底部的间距
+
+# 保存图形为 PDF 文件
+plt.savefig('boruta5.pdf', format='pdf')
+
+# 显示图形
+plt.show()
